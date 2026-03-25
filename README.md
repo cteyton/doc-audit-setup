@@ -1,4 +1,4 @@
-# Skill `doc-audit-setup` to maintain user-doc in your monorepo
+# Skill `doc-audit-setup` to maintain user docs in your monorepo
 
 **Tired of outdated docs, broken links, and features nobody documented?** Stop guessing — audit it.
 
