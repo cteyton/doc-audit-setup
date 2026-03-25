@@ -2,6 +2,18 @@
 
 **Tired of outdated docs, broken links, and features nobody documented?** Stop guessing — audit it.
 
+If your repo looks something like this, this skill is for you:
+
+```
+my-project/
+├── src/            # application code
+├── docs/           # user-facing documentation (Markdown, MDX, RST…)
+├── api/
+└── ...
+```
+
+Your code and your docs live side by side, but nothing ensures they stay in sync. This skill cross-references both to surface gaps, stale references, and inconsistencies automatically.
+
 A Claude Code skill that generates a customized `/doc-audit` skill tailored to your codebase. It scans your repo, asks a few questions, then produces a complete documentation audit pipeline that detects broken links, stale references, missing coverage, and more.
 
 **Focus:** end-user/functional documentation only — not developer docs.
@@ -41,77 +53,7 @@ Re-run `/doc-audit-setup` after major structural changes to regenerate the skill
 
 ## Automate with GitHub Actions
 
-Run `/doc-audit` on a weekly schedule so documentation issues never pile up. Copy [`weekly-doc-review.yml`](weekly-doc-review.yml) into your repo at `.github/workflows/weekly-doc-review.yml`:
-
-```yaml
-name: Weekly Documentation Audit
-
-on:
-  schedule:
-    - cron: '0 7 * * 1' # Every Monday at 7:00 UTC
-  workflow_dispatch:
-    inputs:
-      model:
-        description: 'Claude model to use'
-        required: false
-        default: 'claude-sonnet-4-6'
-        type: string
-
-permissions:
-  contents: read
-  id-token: write
-
-jobs:
-  doc-audit:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run Documentation Audit
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: "/doc-audit"
-          settings: |
-            {
-              "permissions": {
-                "allow": [
-                  "Bash(echo *)",
-                  "Bash(git remote *)",
-                  "Bash(mkdir *)",
-                  "Agent",
-                  "Read",
-                  "Write",
-                  "Glob",
-                  "Grep"
-                ]
-              }
-            }
-          claude_args: "--model ${{ inputs.model || 'claude-opus-4-6' }} --max-turns 50"
-
-      - name: Display reports
-        if: always()
-        run: |
-          if [ -f "doc-audit-report.md" ]; then
-            echo "=== Documentation Audit Report ==="
-            cat "doc-audit-report.md"
-            echo "## Documentation Audit Report" >> "$GITHUB_STEP_SUMMARY"
-            cat "doc-audit-report.md" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "No report file found."
-            echo "No report file found." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Upload reports artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: doc-audit-report
-          path: doc-audit-report.md
-          if-no-files-found: warn
-          retention-days: 30
-```
+Run `/doc-audit` on a weekly schedule so documentation issues never pile up. Copy [`weekly-doc-review.yml`](weekly-doc-review.yml) into your repo at `.github/workflows/weekly-doc-review.yml`.
 
 **Prerequisites:**
 - Add your `ANTHROPIC_API_KEY` as a [repository secret](https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions)
