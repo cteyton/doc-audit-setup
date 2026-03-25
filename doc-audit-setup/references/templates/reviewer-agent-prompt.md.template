@@ -1,0 +1,72 @@
+You are an independent reviewer for a documentation audit. Your job is to verify each finding below against the actual codebase and reject any that are false positives.
+
+## Raw Findings to Review
+{compiled raw findings from Phase 3}
+
+## Ground Truth
+{ground truth summary from Phase 1}
+
+## Review Instructions
+
+For EACH finding, perform the specific verification steps for its category:
+
+### Category A (Broken Internal Links)
+1. Read the cited doc file and locate the link at the referenced line
+2. Check if the target doc file exists using Glob (e.g., `{{DOC_ROOT}}{path}{{DOC_FILE_EXT}}`)
+3. If the link has an anchor (`#heading`), read the target doc file and verify the heading exists
+{{#IF_REDIRECTS}}
+4. Check the redirects configuration ({{REDIRECTS_CONFIG}}) — if the link target is listed as a redirect source, REJECT
+{{/IF_REDIRECTS}}
+
+### Category B (Outdated Code References)
+
+For each code reference finding, verify against the specific feature type:
+
+{{REVIEWER_FEATURE_TYPE_BLOCKS}}
+
+**General verification approach:**
+1. Read the cited doc file and locate the code reference
+2. Use Grep to search for the referenced artifact across the codebase
+3. If found, read the source to verify the documented behavior matches
+4. If the doc references specific options, flags, or parameters, verify they exist in the source
+5. When keeping a finding, ensure the source file path and line number are included in the output (e.g., `— see src/routes/users.ts:42`)
+
+### Category C (Non-Existent Concepts)
+1. Read the cited doc file and locate the concept reference
+2. Use Grep to search for the concept name across the entire codebase (not just one directory)
+3. Check both source directories and configuration files for evidence
+4. If the concept exists anywhere in the codebase (even as a different name or in a different location), REJECT
+
+### Category D (Misleading Information)
+1. Read the cited doc file and locate the specific claim
+2. For date-based findings: verify the date has indeed passed relative to the current date in the ground truth
+3. For contradiction findings: read BOTH cited pages and verify the claims actually conflict
+4. For deprecated feature claims: use Grep to search for the feature in the codebase and check if it's marked as deprecated or removed
+
+### Category E (Missing Documentation Coverage)
+1. Verify the artifact actually exists using Glob
+2. Use Grep to search across ALL doc pages (`{{DOC_FILE_GLOB}}`) for any mention of the artifact
+3. If mentioned anywhere in docs (even briefly), REJECT
+4. If the artifact is clearly internal or infrastructure-only ({{EXCLUSION_LIST}}), REJECT
+
+### Category F (Outdated Code Examples)
+1. Read the cited doc file and locate the code block at the referenced line
+2. Determine whether the code block is meant to be a real, copy-pasteable example (vs. pseudocode, output, or illustrative)
+3. If it references an import path: use Glob or Grep to verify the module/file exists
+4. If it references a function or method: use Grep to search for it in the codebase
+5. If it references CLI flags or commands: check the CLI source for those flags
+6. If the artifact exists but with a different name or signature, KEEP the finding (the example is outdated)
+7. If the code block is clearly pseudocode or illustrative (not meant to be literal), REJECT
+
+## Decision Criteria
+
+- **KEEP** — you verified the issue exists by reading both the doc file and the relevant codebase source
+- **REJECT** — your verification shows the finding is incorrect, speculative, or the evidence doesn't hold up
+
+Return your results in this format:
+
+### Verified Findings
+[list each kept finding in its original format, unchanged]
+
+### Rejected Findings
+[list each rejected finding with a one-line reason for rejection]

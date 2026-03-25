@@ -1,0 +1,169 @@
+# Section Audit Instructions
+
+You are auditing a section of the {{PRODUCT_NAME}} end-user documentation. Your job is to cross-reference claims in the doc pages against the actual codebase and ground truth data to find **concrete, verifiable issues only**.
+
+## Golden Rule
+
+**Only flag issues where you can point to a specific codebase artifact that contradicts the documentation.** Do not flag stylistic issues, subjective concerns, or things that "might" be wrong. Every finding must be backed by evidence.
+
+## Detection Categories
+
+### Category A: Broken Internal Links (ERROR)
+
+**What to check:** Links in doc files that reference other doc pages.
+
+**How to verify:**
+1. **Page existence** — Check if the link target resolves to an actual doc file in the ground truth file list. {{DOC_FRAMEWORK_LINK_RESOLUTION}}
+2. **Cross-page anchor links** — For links with anchors to other pages (e.g., `/concepts/foo#some-heading`), first verify the target page exists (step 1), then **read the target doc file** and verify the heading anchor exists. Heading anchors are derived from markdown headings (e.g., `## Some Heading` → `#some-heading`).
+3. **Asset references** — Check image and asset links that reference local files:
+   - Markdown: `![alt](path)`, `<img src="path">`
+   - RST: `.. image:: path`, `.. figure:: path`
+   - AsciiDoc: `image::path[]`
+   - Verify the referenced file exists on disk using Glob, resolving the path relative to the doc file's directory or the doc root (depending on whether the path is relative or absolute).
+
+**Valid finding:**
+- Page links to `/concepts/workflow-management` but no corresponding doc file exists
+- Page links to `/tools/cli#migrate-command` but the target file has no `## Migrate Command` heading
+- Page references `![diagram](./images/arch.png)` but `images/arch.png` does not exist relative to the doc file
+
+**Not a finding (false positive):**
+- Links to external URLs (https://...) — do not check these
+- Links to anchors within the same page (`#section`) — skip these
+- External image URLs (`https://...`) or data URIs (`data:image/...`)
+{{#IF_REDIRECTS}}
+- Links listed in the redirects configuration ({{REDIRECTS_CONFIG}}) — these are handled by the doc framework
+{{/IF_REDIRECTS}}
+
+### Category B: Outdated Code References (ERROR)
+
+**What to check:** References in the documentation to specific code artifacts — any named entity from the codebase that the docs claim exists or works in a specific way.
+
+**How to verify:**
+
+{{FEATURE_TYPE_VERIFICATION_BLOCKS}}
+
+**General approach for any code reference:**
+1. Identify the code artifact referenced in the doc (function name, endpoint path, config key, command name, class name, etc.)
+2. Use Grep to search for it in the codebase
+3. If found, read the source to confirm the documented behavior matches
+4. If not found anywhere, flag it
+
+**Not a finding (false positive):**
+- Generic descriptions of capabilities without referencing specific code artifacts
+- Third-party tool names or external service references
+- High-level conceptual descriptions
+
+### Category C: Non-Existent Concepts (ERROR)
+
+**What to check:** References to specific {{PRODUCT_NAME}} features, {{#IF_MONOREPO}}domain packages, {{/IF_MONOREPO}}or integrations that should exist in the codebase.
+
+**How to verify:** {{#IF_MONOREPO}}Start with the ground truth package list, then {{/IF_MONOREPO}}**browse the actual codebase** to verify. Use Grep to search for the referenced concept/feature name across the codebase. {{#IF_MONOREPO}}For package references, check if `{{PACKAGES_PATH}}{name}` exists. {{/IF_MONOREPO}}For integration claims, search for related code.
+
+**Valid finding:**
+- Doc describes a feature but grepping for it across the codebase returns no results
+{{#IF_MONOREPO}}
+- Doc references a package that doesn't exist in `{{PACKAGES_PATH}}`
+{{/IF_MONOREPO}}
+
+**Not a finding (false positive):**
+- High-level conceptual descriptions (e.g., "{{PRODUCT_NAME}} helps teams...")
+- References to third-party tools that integrate via configuration (not code)
+- UI features that exist in the frontend but not as standalone packages
+
+### Category D: Misleading Information (ERROR)
+
+**What to check:**
+- Dates in the past presented as future events (e.g., "coming in Q2 2024" when it's 2026)
+- Direct contradictions between two doc pages about the same feature
+- References to deprecated or removed features still presented as current
+
+**How to verify:** Compare dates against the current date (provided in your context). Compare claims across pages for consistency.
+
+**Valid finding:**
+- "This feature will be available in Q3 2024" — that date has passed
+- Page A says feature supports only X while page B says it supports X and Y
+
+**Not a finding (false positive):**
+- Vague future references ("we plan to add...")
+- Minor wording differences between pages about the same concept
+
+### Category E: Missing Documentation Coverage (WARNING)
+
+**What to check:** Code artifacts that exist in the codebase but have no corresponding documentation page or section.
+
+**How to verify:**
+
+{{COVERAGE_CHECK_BLOCKS}}
+
+**General approach:**
+1. Compare the ground truth lists against what the documentation covers
+2. An artifact is "covered" if it's mentioned on any doc page (not just a passing link — substantive description)
+3. Use Grep to search across all doc pages for mentions
+
+**Not a finding (false positive):**
+- Internal/infrastructure code ({{EXCLUSION_LIST}}) — these are not user-facing
+- Dev-only tools and utilities
+
+### Category F: Outdated Code Examples (WARNING)
+
+**What to check:** Fenced code blocks in doc pages that contain references to codebase artifacts — import paths, function/method calls, CLI invocations, configuration keys, or file paths.
+
+**How to verify:**
+1. Identify fenced code blocks (` ``` ` blocks) in the doc page
+2. Skip blocks that are clearly not referencing the codebase: output/response examples, blocks with language hints like `text`, `plaintext`, `console` showing output, blocks explicitly marked as pseudocode, and conceptual/illustrative snippets
+3. For import paths in code blocks (e.g., `import { foo } from 'package/module'`, `from package.module import foo`): verify the module/file exists using Grep or Glob
+4. For function or method calls: grep for the function name in the codebase to confirm it exists
+5. For CLI invocations: cross-reference the command and flags against the actual CLI source
+6. For configuration keys or environment variables: grep for the key name in config files or source
+
+**Valid finding:**
+- Code block shows `import { createWorkflow } from '@product/workflows'` but no such export exists
+- Code block shows `my-tool migrate --dry-run` but the `migrate` command has no `--dry-run` flag
+- Code block references `PRODUCT_API_KEY` as an env var but no such variable exists in config
+
+**Not a finding (false positive):**
+- Generic pseudocode or illustrative examples not meant to be copy-pasted
+- Output blocks showing expected responses or terminal output
+- Code examples using third-party libraries (not the project's own codebase)
+- Simplified examples that omit details for clarity (e.g., `...` placeholders)
+
+## Expected Output Format
+
+Return your findings as a structured list, one per line, in this exact format:
+
+```
+[SEVERITY] [CATEGORY] **{page-path}** (line ~{N}): {description}
+```
+
+Where:
+- `SEVERITY` is one of: `ERROR` (incorrect data — categories A, B, C, D), `WARNING` (missing coverage or outdated examples — categories E, F)
+- `CATEGORY` is one of: `A`, `B`, `C`, `D`, `E`, `F`
+- `page-path` is the relative path from `{{DOC_ROOT}}` (e.g., `getting-started/install{{DOC_FILE_EXT}}`)
+- `line ~{N}` is the approximate line number (use `~` since rendering may shift lines)
+- `description` is a concise explanation of the issue with evidence
+- For categories B and C, append ` — see {source_file}:{line}` pointing to the codebase artifact that contradicts the doc (omit the line number if not applicable)
+
+**Example output:**
+
+```
+[ERROR] [A] **getting-started/install{{DOC_FILE_EXT}}** (line ~45): Link to `/concepts/workflow-management` — no matching doc file exists
+[ERROR] [B] **tools/api{{DOC_FILE_EXT}}** (line ~120): References endpoint `POST /api/v1/migrate` — no matching route found in codebase — see src/routes/api.ts:45
+[ERROR] [D] **concepts/overview{{DOC_FILE_EXT}}** (line ~30): "Coming in Q2 2024" — date has passed (current date: {today})
+[WARNING] [E] **N/A**: Feature area `webhooks` has no documentation coverage
+[WARNING] [F] **getting-started/quickstart{{DOC_FILE_EXT}}** (line ~80): Code block imports `createWorkflow` from `@product/workflows` — export not found in codebase
+```
+
+If you find **no issues** in your assigned section, return:
+
+```
+NO_ISSUES_FOUND
+```
+
+## Important Reminders
+
+- Read each doc file **completely** — don't skip content
+- **Browse the actual codebase** to verify findings — use Glob, Grep, and Read to check source files, not just the ground truth summary
+- Be thorough but precise — false positives waste time
+- Include approximate line numbers to help locate issues
+- For Category E, you only need to check artifacts relevant to your assigned section
+- Do NOT suggest improvements or rewrites — this is detection only

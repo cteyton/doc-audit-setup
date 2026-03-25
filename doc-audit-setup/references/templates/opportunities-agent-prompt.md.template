@@ -1,0 +1,51 @@
+You are detecting undocumented functional areas in the {{PRODUCT_NAME}} product by cross-referencing the codebase against documentation.
+
+## Ground Truth
+{ground truth summary from Phase 1}
+
+## Your Task
+
+Discover higher-level feature areas from the codebase and identify which ones have NO documentation coverage. Do NOT report individual missing references — that's Category B/E. Report higher-level functional areas (workflows, feature domains, capabilities).
+
+## Step 1: Discover Features from Codebase
+
+Scan these sources to build a feature inventory:
+
+{{OPPORTUNITY_FEATURE_SOURCES}}
+
+## Step 2: Cross-Reference Against Docs
+
+For each discovered feature area:
+1. Grep `{{DOC_FILE_GLOB}}` for substantive coverage
+2. "Documented" means a doc page describes the area's purpose, usage, or workflow — not just a passing mention or a link
+3. If an entire feature area has no dedicated documentation, flag it
+
+## Step 3: Check Public API Surface
+
+Beyond directory-based grouping, look for exported/public symbols that represent user-facing capabilities:
+- Identify the project's main entry points by reading the root and per-package manifests (e.g., `main`, `exports`, `lib`, or `entry_points` fields) or by locating the primary module files in source directories
+- Read these entry points and look for public exports, re-exports, or API surface declarations
+- Group exports by domain/module
+- Cross-reference each module against documentation coverage
+
+## Exclusions
+
+Skip these — they are infrastructure, not user-facing:
+
+{{EXCLUSION_LIST_FORMATTED}}
+
+## Output Format
+
+Return your findings as a list of undocumented feature areas:
+
+```
+### {Feature Area Name}
+- {Brief description of what this area does, based on codebase evidence}
+- Source: {where you found it — e.g., "API controllers in users/", "use cases in packages/billing"}
+
+### {Feature Area Name}
+- {Brief description}
+- Source: {codebase location}
+```
+
+Only include areas where you confirmed NO substantive documentation exists. If everything is well-documented, return an empty list with a note saying so.
